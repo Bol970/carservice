@@ -60,6 +60,14 @@ cp .env.docker.example .env.docker
 
 После этого отредактируйте `.env.docker` и подставьте реальные значения.
 
+В `.env.docker` теперь нужно хранить и `D1_DATABASE_ID`.
+
+Сгенерируйте локальные Cloudflare-конфиги:
+
+```bash
+npm run cf:render
+```
+
 Соберите контейнер:
 
 ```bash
@@ -87,7 +95,14 @@ npm run docker:wrangler:version
 npx wrangler d1 create carservice-db
 ```
 
-Cloudflare вернет `database_id`. Подставьте его в [wrangler.toml](/home/lobanov/Projects/carservice/wrangler.toml).
+Cloudflare вернет `database_id`. Сохраните его в локальный `.env.docker` как `D1_DATABASE_ID`.
+
+Публичные шаблоны лежат в:
+
+- [wrangler.toml.template](/home/lobanov/Projects/carservice/wrangler.toml.template)
+- [cloudflare-upload-metadata.template.json](/home/lobanov/Projects/carservice/cloudflare-upload-metadata.template.json)
+
+Реальные файлы `wrangler.toml` и `cloudflare-upload-metadata.json` генерируются локально из шаблонов и не коммитятся.
 
 Если делаете это через Docker:
 
@@ -146,11 +161,17 @@ npm run docker:secret:setup-secret
 
 Пример локального файла есть в [.dev.vars.example](/home/lobanov/Projects/carservice/.dev.vars.example).
 
-Переменные в [wrangler.toml](/home/lobanov/Projects/carservice/wrangler.toml):
+Переменные в локально сгенерированном [wrangler.toml](/home/lobanov/Projects/carservice/wrangler.toml):
 
 - `TIMEZONE` — по умолчанию `Europe/Moscow`;
 - `APP_NAME` — имя приложения для заголовка `X-Title` в OpenRouter;
 - `OPENROUTER_MODEL` — по умолчанию `openrouter/free`.
+
+Важно:
+
+- `wrangler.toml` и `cloudflare-upload-metadata.json` больше не хранятся в git;
+- в GitHub лежат только шаблоны с плейсхолдерами;
+- ручное подставление `database_id` в tracked-файлы больше не нужно.
 
 ## Деплой
 

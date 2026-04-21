@@ -10,4 +10,5 @@ OPENROUTER_MODEL = "openrouter/free"
 [[d1_databases]]
 binding = "DB"
 database_name = "carservice-db"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "__D1_DATABASE_ID__"
+
