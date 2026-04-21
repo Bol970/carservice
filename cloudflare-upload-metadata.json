@@ -1,0 +1,27 @@
+{
+  "main_module": "src/index.js",
+  "compatibility_date": "2026-04-21",
+  "keep_bindings": ["secret_text"],
+  "bindings": [
+    {
+      "type": "d1",
+      "name": "DB",
+      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+    },
+    {
+      "type": "plain_text",
+      "name": "APP_NAME",
+      "text": "CarService Bot"
+    },
+    {
+      "type": "plain_text",
+      "name": "TIMEZONE",
+      "text": "Europe/Moscow"
+    },
+    {
+      "type": "plain_text",
+      "name": "OPENROUTER_MODEL",
+      "text": "openrouter/free"
+    }
+  ]
+}

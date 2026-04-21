@@ -1,0 +1,7 @@
+FROM node:20
+
+WORKDIR /app
+
+RUN npm install -g wrangler@4.84.0
+
+CMD ["wrangler", "--version"]

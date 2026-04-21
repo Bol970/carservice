@@ -1,0 +1,13 @@
+name = "carservice-telegram-bot"
+main = "src/index.js"
+compatibility_date = "2026-04-21"
+
+[vars]
+APP_NAME = "CarService Bot"
+TIMEZONE = "Europe/Moscow"
+OPENROUTER_MODEL = "openrouter/free"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "carservice-db"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"

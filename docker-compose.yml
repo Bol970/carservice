@@ -1,0 +1,18 @@
+services:
+  wrangler:
+    build:
+      context: .
+      dockerfile: Dockerfile.wrangler
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
+      CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      SETUP_SECRET: ${SETUP_SECRET:-}
+      ALLOWED_TELEGRAM_USER_IDS: ${ALLOWED_TELEGRAM_USER_IDS:-}
+    stdin_open: true
+    tty: true

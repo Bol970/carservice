@@ -1,0 +1,24 @@
+{
+  "name": "carservice-telegram-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "d1:migrate:local": "wrangler d1 execute DB --local --file=./migrations/0001_init.sql",
+    "d1:migrate:remote": "wrangler d1 execute DB --remote --file=./migrations/0001_init.sql",
+    "docker:build": "docker compose build wrangler",
+    "docker:wrangler:version": "docker compose run --rm wrangler wrangler --version",
+    "docker:d1:create": "docker compose --env-file .env.docker run --rm wrangler wrangler d1 create carservice-db",
+    "docker:d1:migrate:remote": "docker compose --env-file .env.docker run --rm wrangler wrangler d1 execute DB --remote --file=./migrations/0001_init.sql",
+    "docker:deploy": "docker compose --env-file .env.docker run --rm wrangler wrangler deploy",
+    "docker:secret:telegram-token": "docker compose --env-file .env.docker run --rm wrangler sh -lc 'printf \"%s\" \"$TELEGRAM_BOT_TOKEN\" | wrangler secret put TELEGRAM_BOT_TOKEN'",
+    "docker:secret:webhook-secret": "docker compose --env-file .env.docker run --rm wrangler sh -lc 'printf \"%s\" \"$TELEGRAM_WEBHOOK_SECRET\" | wrangler secret put TELEGRAM_WEBHOOK_SECRET'",
+    "docker:secret:openrouter-key": "docker compose --env-file .env.docker run --rm wrangler sh -lc 'printf \"%s\" \"$OPENROUTER_API_KEY\" | wrangler secret put OPENROUTER_API_KEY'",
+    "docker:secret:setup-secret": "docker compose --env-file .env.docker run --rm wrangler sh -lc 'printf \"%s\" \"$SETUP_SECRET\" | wrangler secret put SETUP_SECRET'"
+  },
+  "devDependencies": {
+    "wrangler": "^4.14.4"
+  }
+}
