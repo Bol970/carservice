@@ -17,6 +17,34 @@ Telegram-бот для очень маленького автосервиса н
 - выгружать отчеты в CSV;
 - вести пошаговый мастер создания заказа через Telegram.
 
+## Быстрый старт
+
+Минимальный сценарий запуска с нуля:
+
+```bash
+cp .env.docker.example .env.docker
+# заполните .env.docker своими значениями
+docker compose build wrangler
+docker compose --env-file .env.docker run --rm wrangler wrangler d1 create carservice-db
+# добавьте полученный D1_DATABASE_ID в .env.docker
+npm run cf:render
+docker compose --env-file .env.docker run --rm wrangler wrangler d1 execute DB --remote --file=./migrations/0001_init.sql
+docker compose --env-file .env.docker run --rm wrangler wrangler d1 execute DB --remote --file=./migrations/0002_app_settings.sql
+docker compose --env-file .env.docker run --rm wrangler wrangler d1 execute DB --remote --file=./migrations/0003_telegram_sessions.sql
+docker compose --env-file .env.docker run --rm wrangler sh -lc 'printf "%s" "$TELEGRAM_BOT_TOKEN" | wrangler secret put TELEGRAM_BOT_TOKEN'
+docker compose --env-file .env.docker run --rm wrangler sh -lc 'printf "%s" "$TELEGRAM_WEBHOOK_SECRET" | wrangler secret put TELEGRAM_WEBHOOK_SECRET'
+docker compose --env-file .env.docker run --rm wrangler sh -lc 'printf "%s" "$OPENROUTER_API_KEY" | wrangler secret put OPENROUTER_API_KEY'
+docker compose --env-file .env.docker run --rm wrangler sh -lc 'printf "%s" "$SETUP_SECRET" | wrangler secret put SETUP_SECRET'
+docker compose --env-file .env.docker run --rm wrangler wrangler deploy
+```
+
+После деплоя:
+
+```bash
+curl -X POST https://YOUR-WORKER-URL/setup-webhook \
+  -H "x-setup-secret: YOUR_SETUP_SECRET"
+```
+
 ## Архитектура
 
 - `Cloudflare Workers` принимает webhook от Telegram.
