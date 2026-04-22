@@ -213,6 +213,8 @@ export async function parseUserMessageWithLLM(env, messageText, todayDate) {
           "Для edit_order с edit_mode=replace заполни customer, vehicle, service_record и полный массив items.",
           "Для edit_order с edit_mode=patch не выдумывай весь заказ целиком: указывай только те customer, vehicle и service_record поля, которые пользователь реально просит поменять, а item_operations заполняй операциями add, update или remove.",
           "Если пользователь ссылается на позицию номером, например 'удали позицию 2', заполни match_item_index.",
+          "Нумерация позиций 1-based, как в ответе команды /order: первая позиция = 1.",
+          "Если пользователь не указал номер позиции явно, ставь match_item_index = null, а не 0.",
           "Если пользователь ссылается на позицию по названию, заполни match_description и при возможности match_category.",
           "Для delete_order верни только order_id, а остальные поля оставь null или пустыми.",
           "Категории: labor = стоимость работ, part = запчасти, consumable = расходники и материалы.",

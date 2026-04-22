@@ -114,15 +114,6 @@ function formatItemForError(item, index) {
 }
 
 function findOrderItemIndex(items, operation) {
-  if (Number.isInteger(operation.match_item_index)) {
-    const zeroBased = operation.match_item_index - 1;
-    if (zeroBased < 0 || zeroBased >= items.length) {
-      throw new Error(`Позиция #${operation.match_item_index} не найдена в заказе.`);
-    }
-
-    return zeroBased;
-  }
-
   const categoryMatches = items
     .map((item, index) => ({ item, index }))
     .filter(({ item }) => !operation.match_category || item.category === operation.match_category);
@@ -169,6 +160,19 @@ function findOrderItemIndex(items, operation) {
         ...categoryMatches.map(({ item, index }) => `- ${formatItemForError(item, index)}`),
       ].join("\n"));
     }
+  }
+
+  if (Number.isInteger(operation.match_item_index) && operation.match_item_index > 0) {
+    const zeroBased = operation.match_item_index - 1;
+    if (zeroBased < 0 || zeroBased >= items.length) {
+      throw new Error(`Позиция #${operation.match_item_index} не найдена в заказе.`);
+    }
+
+    return zeroBased;
+  }
+
+  if (Number.isInteger(operation.match_item_index) && operation.match_item_index === 0 && !operation.match_description) {
+    throw new Error("Номер позиции должен начинаться с 1. Сначала отправьте /order <номер заказа>, чтобы увидеть нумерацию.");
   }
 
   throw new Error(`Не удалось найти позицию "${operation.match_description || "без названия"}" в заказе.`);
