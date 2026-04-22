@@ -17,6 +17,7 @@ import {
   registerProcessedUpdate,
   setTelegramSession,
   unlockBotTelegramUsers,
+  patchServiceRecord,
   updateServiceRecord,
 } from "./db.js";
 import {
@@ -281,12 +282,14 @@ async function resolveIntent(env, text, todayDate) {
         vehicle: null,
         service_record: null,
         items: [],
+        item_operations: [],
+        edit_mode: null,
         search: null,
-        answer_text: "Используйте /edit_order <номер> <новое описание заказа>.",
+        answer_text: "Используйте /edit_order <номер> <описание изменений>.",
       };
     }
 
-    const parsed = await parseUserMessageWithLLM(env, command.text, todayDate);
+    const parsed = await parseUserMessageWithLLM(env, `Измени существующий заказ. ${command.text}`, todayDate);
     return parsed
       ? {
           ...parsed,
@@ -306,6 +309,8 @@ async function resolveIntent(env, text, todayDate) {
         vehicle: null,
         service_record: null,
         items: [],
+        item_operations: [],
+        edit_mode: null,
         search: null,
         answer_text: "После /record добавьте описание работ свободным текстом.",
       };
@@ -319,6 +324,8 @@ async function resolveIntent(env, text, todayDate) {
     vehicle: null,
     service_record: null,
     items: [],
+    item_operations: [],
+    edit_mode: null,
     search: null,
     answer_text: null,
     ...command,
@@ -422,16 +429,24 @@ async function handleIntent(env, intent, rawText, todayDate, context = {}) {
 
   if (intent.intent === "edit_order") {
     if (!intent.order_id) {
-      return textReply("Используйте /edit_order <номер> <новое описание заказа>.");
+      return textReply(intent.answer_text || "Укажите номер заказа, например: 'измени заказ 5, добавь работу диагностика 1500' или /edit_order 5 добавить диагностику 1500");
     }
 
-    const updated = await updateServiceRecord(
-      env,
-      intent.order_id,
-      intent,
-      intent.raw_edit_text || rawText,
-      todayDate,
-    );
+    const updated = intent.edit_mode === "patch"
+      ? await patchServiceRecord(
+        env,
+        intent.order_id,
+        intent,
+        intent.raw_edit_text || rawText,
+        todayDate,
+      )
+      : await updateServiceRecord(
+        env,
+        intent.order_id,
+        intent,
+        intent.raw_edit_text || rawText,
+        todayDate,
+      );
 
     return textReply(buildUpdateConfirmation({
       customer: updated.customer,

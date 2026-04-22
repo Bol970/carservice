@@ -73,6 +73,170 @@ function sanitizeMoneyItems(items) {
     .filter((item) => item.description);
 }
 
+function centsToRubles(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+
+  return numeric / 100;
+}
+
+function normalizeItemDescription(value) {
+  return (compactText(value) || "")
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/[^a-zа-я0-9]+/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function itemMatchesDescription(item, targetDescription) {
+  const normalizedTarget = normalizeItemDescription(targetDescription);
+  if (!normalizedTarget) {
+    return false;
+  }
+
+  const normalizedItem = normalizeItemDescription(item.description);
+  if (!normalizedItem) {
+    return false;
+  }
+
+  return (
+    normalizedItem === normalizedTarget
+    || normalizedItem.includes(normalizedTarget)
+    || normalizedTarget.includes(normalizedItem)
+  );
+}
+
+function formatItemForError(item, index) {
+  return `${index + 1}. ${item.category}: ${item.description}`;
+}
+
+function findOrderItemIndex(items, operation) {
+  if (Number.isInteger(operation.match_item_index)) {
+    const zeroBased = operation.match_item_index - 1;
+    if (zeroBased < 0 || zeroBased >= items.length) {
+      throw new Error(`Позиция #${operation.match_item_index} не найдена в заказе.`);
+    }
+
+    return zeroBased;
+  }
+
+  const categoryMatches = items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => !operation.match_category || item.category === operation.match_category);
+
+  const byExactDescription = categoryMatches.filter(({ item }) => {
+    const target = normalizeItemDescription(operation.match_description);
+    return target && normalizeItemDescription(item.description) === target;
+  });
+
+  if (byExactDescription.length === 1) {
+    return byExactDescription[0].index;
+  }
+
+  if (byExactDescription.length > 1) {
+    throw new Error([
+      `Нашлось несколько совпадений для позиции "${operation.match_description}".`,
+      "Уточните номер позиции через /order <номер заказа> и затем укажите 'позицию N'.",
+      ...byExactDescription.map(({ item, index }) => `- ${formatItemForError(item, index)}`),
+    ].join("\n"));
+  }
+
+  const bySoftDescription = categoryMatches.filter(({ item }) => itemMatchesDescription(item, operation.match_description));
+  if (bySoftDescription.length === 1) {
+    return bySoftDescription[0].index;
+  }
+
+  if (bySoftDescription.length > 1) {
+    throw new Error([
+      `Нашлось несколько похожих позиций для "${operation.match_description}".`,
+      "Уточните номер позиции через /order <номер заказа> и затем укажите 'позицию N'.",
+      ...bySoftDescription.map(({ item, index }) => `- ${formatItemForError(item, index)}`),
+    ].join("\n"));
+  }
+
+  if (!operation.match_description && operation.match_category) {
+    if (categoryMatches.length === 1) {
+      return categoryMatches[0].index;
+    }
+
+    if (categoryMatches.length > 1) {
+      throw new Error([
+        `В категории ${operation.match_category} найдено несколько позиций.`,
+        "Уточните название или номер позиции через /order <номер заказа>.",
+        ...categoryMatches.map(({ item, index }) => `- ${formatItemForError(item, index)}`),
+      ].join("\n"));
+    }
+  }
+
+  throw new Error(`Не удалось найти позицию "${operation.match_description || "без названия"}" в заказе.`);
+}
+
+function hasPatchContent(parsed) {
+  const hasCustomer = Object.values(parsed.customer || {}).some((value) => value !== null && value !== undefined && value !== "");
+  const hasVehicle = Object.values(parsed.vehicle || {}).some((value) => value !== null && value !== undefined && value !== "");
+  const hasServiceRecord = Object.values(parsed.service_record || {}).some((value) => value !== null && value !== undefined && value !== "");
+  const hasItemOperations = Array.isArray(parsed.item_operations) && parsed.item_operations.length > 0;
+
+  return hasCustomer || hasVehicle || hasServiceRecord || hasItemOperations;
+}
+
+function buildPatchItems(existingItems, operations) {
+  const working = (existingItems || []).map((item) => ({
+    category: item.category,
+    description: item.description,
+    quantity: Number(item.quantity) > 0 ? Number(item.quantity) : 1,
+    unit_price: centsToRubles(item.unit_price_cents),
+    total_price: centsToRubles(item.total_price_cents),
+  }));
+
+  for (const operation of operations || []) {
+    if (operation.action === "add") {
+      working.push({
+        category: operation.category || operation.match_category || "labor",
+        description: compactText(operation.description || operation.match_description) || "Без названия",
+        quantity: Number(operation.quantity) > 0 ? Number(operation.quantity) : 1,
+        unit_price: Number.isFinite(Number(operation.unit_price)) ? Number(operation.unit_price) : null,
+        total_price: Number.isFinite(Number(operation.total_price)) ? Number(operation.total_price) : null,
+      });
+      continue;
+    }
+
+    const itemIndex = findOrderItemIndex(working, operation);
+    if (operation.action === "remove") {
+      working.splice(itemIndex, 1);
+      continue;
+    }
+
+    const current = working[itemIndex];
+    const nextQuantity = Number(operation.quantity) > 0 ? Number(operation.quantity) : current.quantity;
+    const hasUnitPrice = Number.isFinite(Number(operation.unit_price));
+    const hasTotalPrice = Number.isFinite(Number(operation.total_price));
+    const nextTotal = hasTotalPrice
+      ? Number(operation.total_price)
+      : hasUnitPrice
+        ? Number(operation.unit_price) * nextQuantity
+        : current.total_price;
+    const nextUnit = hasUnitPrice
+      ? Number(operation.unit_price)
+      : hasTotalPrice
+        ? (nextQuantity ? Number(operation.total_price) / nextQuantity : Number(operation.total_price))
+        : current.unit_price;
+
+    working[itemIndex] = {
+      category: operation.category || current.category,
+      description: compactText(operation.description) || current.description,
+      quantity: nextQuantity,
+      unit_price: nextUnit,
+      total_price: nextTotal,
+    };
+  }
+
+  return sanitizeMoneyItems(working);
+}
+
 function computeTotals(items) {
   const totals = {
     labor_total_cents: 0,
@@ -640,6 +804,26 @@ async function replaceOrderItems(env, orderId, items) {
   }
 }
 
+async function getOrderEditContext(env, orderId) {
+  const details = await getOrderDetails(env, orderId);
+  if (!details?.order) {
+    return null;
+  }
+
+  const customer = await env.DB.prepare("SELECT * FROM customers WHERE id = ?")
+    .bind(details.order.customer_id)
+    .first();
+  const vehicle = await env.DB.prepare("SELECT * FROM vehicles WHERE id = ?")
+    .bind(details.order.vehicle_id)
+    .first();
+
+  return {
+    order: details.order,
+    customer,
+    vehicle,
+  };
+}
+
 export async function createServiceRecord(env, parsed, rawText, todayDate) {
   const customer = await upsertCustomer(env, parsed.customer);
   const vehicle = await upsertVehicle(env, customer.id, parsed.vehicle);
@@ -745,6 +929,90 @@ export async function updateServiceRecord(env, orderId, parsed, rawText, todayDa
       compactText(parsed.service_record?.problem_description),
       compactText(parsed.service_record?.work_summary),
       compactText(parsed.service_record?.notes),
+      compactText(rawText),
+      orderId,
+    )
+    .run();
+
+  await replaceOrderItems(env, orderId, items);
+
+  const order = await env.DB.prepare("SELECT * FROM service_orders WHERE id = ?").bind(orderId).first();
+  const totals = computeTotals(items);
+
+  return {
+    customer,
+    vehicle,
+    order,
+    items,
+    totals,
+  };
+}
+
+export async function patchServiceRecord(env, orderId, parsed, rawText, todayDate) {
+  const existing = await getOrderEditContext(env, orderId);
+  if (!existing) {
+    throw new Error(`Заказ #${orderId} не найден.`);
+  }
+
+  if (!hasPatchContent(parsed)) {
+    throw new Error("Не понял, что именно нужно поменять в заказе. Укажите номер позиции или название и действие: добавить, изменить или удалить.");
+  }
+
+  const customer = await upsertCustomer(env, {
+    name: compactText(parsed.customer?.name) || existing.customer?.name,
+    phone: compactText(parsed.customer?.phone) || existing.customer?.phone,
+    notes: compactText(parsed.customer?.notes) || existing.customer?.notes,
+  });
+
+  const vehicle = await upsertVehicle(env, customer.id, {
+    make: compactText(parsed.vehicle?.make) || existing.vehicle?.make,
+    model: compactText(parsed.vehicle?.model) || existing.vehicle?.model,
+    plate: compactText(parsed.vehicle?.plate) || existing.vehicle?.plate,
+    vin: compactText(parsed.vehicle?.vin) || existing.vehicle?.vin,
+    year: Number.isInteger(parsed.vehicle?.year) ? parsed.vehicle.year : existing.vehicle?.year,
+    color: compactText(parsed.vehicle?.color) || existing.vehicle?.color,
+    nickname: compactText(parsed.vehicle?.nickname) || existing.vehicle?.nickname,
+    notes: compactText(parsed.vehicle?.notes) || existing.vehicle?.notes,
+  });
+
+  const items = buildPatchItems(existing.order.items, parsed.item_operations || []);
+  const serviceDate = compactText(parsed.service_record?.service_date) || existing.order.service_date || todayDate;
+  const startTime = compactText(parsed.service_record?.start_time) || existing.order.start_time;
+  const endTime = compactText(parsed.service_record?.end_time) || existing.order.end_time;
+  const odometerKm = Number.isInteger(parsed.service_record?.odometer_km)
+    ? parsed.service_record.odometer_km
+    : existing.order.odometer_km;
+  const problemDescription = compactText(parsed.service_record?.problem_description) || existing.order.problem_description;
+  const workSummary = compactText(parsed.service_record?.work_summary) || existing.order.work_summary;
+  const notes = compactText(parsed.service_record?.notes) || existing.order.notes;
+
+  await env.DB.prepare(
+    `
+      UPDATE service_orders
+      SET
+        customer_id = ?,
+        vehicle_id = ?,
+        service_date = ?,
+        start_time = ?,
+        end_time = ?,
+        odometer_km = ?,
+        problem_description = ?,
+        work_summary = ?,
+        notes = ?,
+        source_text = ?
+      WHERE id = ?
+    `,
+  )
+    .bind(
+      customer.id,
+      vehicle.id,
+      serviceDate,
+      startTime,
+      endTime,
+      odometerKm,
+      problemDescription,
+      workSummary,
+      notes,
       compactText(rawText),
       orderId,
     )

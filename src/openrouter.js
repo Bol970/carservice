@@ -11,6 +11,8 @@ const PARSER_SCHEMA = {
         type: "string",
         enum: [
           "create_service_record",
+          "edit_order",
+          "delete_order",
           "report_customer",
           "report_vehicle",
           "report_period",
@@ -19,6 +21,13 @@ const PARSER_SCHEMA = {
           "help",
           "unknown",
         ],
+      },
+      order_id: {
+        type: ["integer", "null"],
+      },
+      edit_mode: {
+        type: ["string", "null"],
+        enum: ["replace", "patch", null],
       },
       confidence: {
         type: "number",
@@ -88,6 +97,44 @@ const PARSER_SCHEMA = {
           required: ["category", "description", "quantity", "unit_price", "total_price"],
         },
       },
+      item_operations: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            action: {
+              type: "string",
+              enum: ["add", "update", "remove"],
+            },
+            match_item_index: { type: ["integer", "null"] },
+            match_category: {
+              type: ["string", "null"],
+              enum: ["labor", "part", "consumable", null],
+            },
+            match_description: { type: ["string", "null"] },
+            category: {
+              type: ["string", "null"],
+              enum: ["labor", "part", "consumable", null],
+            },
+            description: { type: ["string", "null"] },
+            quantity: { type: ["number", "null"] },
+            unit_price: { type: ["number", "null"] },
+            total_price: { type: ["number", "null"] },
+          },
+          required: [
+            "action",
+            "match_item_index",
+            "match_category",
+            "match_description",
+            "category",
+            "description",
+            "quantity",
+            "unit_price",
+            "total_price",
+          ],
+        },
+      },
       search: {
         type: ["object", "null"],
         additionalProperties: false,
@@ -114,7 +161,19 @@ const PARSER_SCHEMA = {
         type: ["string", "null"],
       },
     },
-    required: ["intent", "confidence", "customer", "vehicle", "service_record", "items", "search", "answer_text"],
+    required: [
+      "intent",
+      "order_id",
+      "edit_mode",
+      "confidence",
+      "customer",
+      "vehicle",
+      "service_record",
+      "items",
+      "item_operations",
+      "search",
+      "answer_text",
+    ],
   },
 };
 
@@ -139,6 +198,11 @@ export async function parseUserMessageWithLLM(env, messageText, todayDate) {
           "Ты помощник автосервиса и должен строго преобразовать сообщение пользователя в JSON по схеме.",
           `Текущая дата: ${todayDate}.`,
           "Если пользователь просит сохранить выполненные работы, используй intent=create_service_record.",
+          "Если пользователь просит изменить существующий заказ, используй intent=edit_order.",
+          "Если пользователь прислал весь новый состав заказа целиком, ставь edit_mode=replace.",
+          "Если пользователь просит добавить, изменить или удалить отдельные позиции существующего заказа, ставь edit_mode=patch.",
+          "Для edit_order обязательно заполни order_id, если номер заказа указан в сообщении.",
+          "Если пользователь просит удалить существующий заказ и указал номер заказа, используй intent=delete_order и заполни order_id.",
           "Если пользователь просит историю по клиенту, intent=report_customer.",
           "Если пользователь просит историю по машине, intent=report_vehicle.",
           "Если пользователь просит отчет за период, intent=report_period.",
@@ -146,6 +210,11 @@ export async function parseUserMessageWithLLM(env, messageText, todayDate) {
           "Если пользователь просит список машин, intent=list_vehicles.",
           "Если пользователь явно не просит действие, intent=unknown.",
           "Для create_service_record заполни customer, vehicle, service_record и items настолько полно, насколько возможно.",
+          "Для edit_order с edit_mode=replace заполни customer, vehicle, service_record и полный массив items.",
+          "Для edit_order с edit_mode=patch не выдумывай весь заказ целиком: указывай только те customer, vehicle и service_record поля, которые пользователь реально просит поменять, а item_operations заполняй операциями add, update или remove.",
+          "Если пользователь ссылается на позицию номером, например 'удали позицию 2', заполни match_item_index.",
+          "Если пользователь ссылается на позицию по названию, заполни match_description и при возможности match_category.",
+          "Для delete_order верни только order_id, а остальные поля оставь null или пустыми.",
           "Категории: labor = стоимость работ, part = запчасти, consumable = расходники и материалы.",
           "Все даты возвращай в формате YYYY-MM-DD.",
           "Все времена возвращай в формате HH:MM.",
@@ -193,4 +262,3 @@ export async function parseUserMessageWithLLM(env, messageText, todayDate) {
 
   return typeof content === "string" ? JSON.parse(content) : content;
 }
-

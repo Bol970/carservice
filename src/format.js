@@ -42,7 +42,9 @@ export function buildHelpText() {
     "",
     "Что можно отправлять:",
     '1. Свободный текст для записи работ. Пример: "Иван Петров, +79991234567, Toyota Camry А123ВС77, 2026-04-21 11:00-13:30. Работы: замена масла 2500, диагностика 1500. Запчасти: масляный фильтр 700, масло 2400. Расходники: очиститель 200."',
-    '2. Запрос отчета. Пример: "Покажи историю по Ивану Петрову", "Отчет по машине А123ВС77", "Отчет за период 2026-04-01 2026-04-21".',
+    '2. Свободный текст для позиционного обновления заказа. Пример: "В заказе 1 добавь в работы диагностику 1500", "В заказе 1 измени позицию 2 на масло 2600", "В заказе 1 удали позицию 3".',
+    '3. Свободный текст для удаления заказа. Пример: "Удали заказ 1".',
+    '4. Запрос отчета. Пример: "Покажи историю по Ивану Петрову", "Отчет по машине А123ВС77", "Отчет за период 2026-04-01 2026-04-21".',
     "",
     "Команды:",
     "/help",
@@ -55,7 +57,7 @@ export function buildHelpText() {
     "/cancel",
     "/orders",
     "/order 1",
-    "/edit_order 1 <новое описание заказа>",
+    "/edit_order 1 <описание изменений или новый состав заказа>",
     "/delete_order 1",
     "/csv_customer Иван Петров",
     "/csv_vehicle А123ВС77",
@@ -175,9 +177,9 @@ function buildOrderBlock(order) {
 
   if (order.items?.length) {
     lines.push("Позиции:");
-    for (const item of order.items) {
+    for (const [index, item] of order.items.entries()) {
       lines.push(
-        `- ${formatCategoryLabel(item.category)}: ${item.description} (${item.quantity} x ${formatMoney(item.unit_price_cents)} = ${formatMoney(item.total_price_cents)})`,
+        `${index + 1}. ${formatCategoryLabel(item.category)}: ${item.description} (${item.quantity} x ${formatMoney(item.unit_price_cents)} = ${formatMoney(item.total_price_cents)})`,
       );
     }
   }
